@@ -1,7 +1,16 @@
+# Dataset
+data/shakespeare/input.txt
+data/shakespeare/train.bin
+data/shakespeare/train.bin
+
 # Byte-compiled / optimized / DLL files
+
+model/__pycache__/
 __pycache__/
 *.py[cod]
 *$py.class
+
+.DS_Store
 
 # C extensions
 *.so
