@@ -79,7 +79,7 @@ class Training:
             dt = 1000*(t1 - t0)
             
             if ep % 20 == 0:
-                print(f"{ep+1} / {self.config.num_epochs} | Loss : {loss.item():.4f} | dt : {dt:.2f}ms | {(self.config.batch_size * self.config.seq_length) / (t1 - t0):.2f} toks/sec")
+                print(f"{ep+1} / {self.config.num_epochs} | Loss : {loss.item():.4f} | dt : {dt:.2f}ms | {(self.config.batch_size * self.config.seq_length) / dt:.2f} toks/sec")
 
 
 
