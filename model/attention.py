@@ -20,7 +20,9 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(config.d_emb, config.d_emb)
         self.W_out = nn.Linear(config.d_emb, config.d_emb)
 
-        self.register_buffer("mask", torch.tril(torch.ones(config.max_ctx, config.max_ctx)))
+        self.register_buffer("mask", 
+                            torch.tril(torch.ones(config.max_ctx, config.max_ctx, dtype = torch.bool)),
+                            persistent=False)
 
 
     def forward(self, X : torch.Tensor) -> torch.Tensor:
@@ -36,6 +38,7 @@ class MultiHeadAttention(nn.Module):
 
         """
 
+        # device = X.device
         B, N_ctx = X.shape[0], X.shape[1]
 
 
@@ -44,12 +47,17 @@ class MultiHeadAttention(nn.Module):
         V = self.W_v(X).view(B, N_ctx, self.num_heads, self.d_head).transpose(1, 2)
 
 
-        scores = torch.einsum("bhid, bhjd -> bhij", Q, K) / math.sqrt(self.d_head)
-        scores = scores.masked_fill(self.mask[None, None, :N_ctx, :N_ctx] == 0, float("-inf"))
+        # scores = torch.einsum("bhid, bhjd -> bhij", Q, K) / math.sqrt(self.d_head)
+        # scores = scores.masked_fill(self.mask[None, None, :N_ctx, :N_ctx] == 0, float("-inf"))
 
-        weights = F.softmax(scores, dim = -1) # (B, H, N_ctx, N_ctx)
+        # weights = F.softmax(scores, dim = -1) # (B, H, N_ctx, N_ctx)
 
-        attentions = torch.einsum("bhij, bhjd -> bhid", weights, V)
+        # attentions = torch.einsum("bhij, bhjd -> bhid", weights, V)
+
+        attentions = F.scaled_dot_product_attention(
+            Q, K, V,
+            is_causal= True,
+        )
         attentions = attentions.transpose(1, 2).contiguous().view(B, N_ctx, self.d_emb)
 
         return self.W_out(attentions)
