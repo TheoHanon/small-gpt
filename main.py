@@ -40,7 +40,7 @@ if __name__ == "__main__":
     )
 
     train_config = TrainingConfig(
-        num_epochs= 2048,
+        num_epochs= 5000,
         batch_size = 4,
         seq_length= 512,
     )
@@ -57,13 +57,21 @@ if __name__ == "__main__":
         config = gpt_config
     ).to(device)
 
-    model.compile()
+    # model.compile()
 
     main(train_config, model, device)
 
-    q = torch.tensor(tokenizer("My name is")["input_ids"], dtype = torch.long).unsqueeze(0).to(device)
+    q = torch.tensor(tokenizer("My name is")["input_ids"], dtype = torch.long).unsqueeze(0).repeat(5, 1).to(device)
     out= model.generate(q, max_new_tokens = 20)
-    ans = print(tokenizer.batch_decode(out))
+    resp = tokenizer.batch_decode(out, skip_special_tokens = True)
 
+    print("\n")
+    print("="*100)
+    print("SAMPLES")
+    print("="*100)
+    for i, res in enumerate(resp):
+        print(f"{i+1}. ", res)
+    print("="*100)
+    
 
 

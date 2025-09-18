@@ -36,6 +36,7 @@ class GPT(nn.Module):
         ])
 
         self.linear = nn.Linear(config.d_emb, config.d_voc, bias = False)
+        self.register_buffer("pos", torch.arange(config.max_ctx).unsqueeze(0), persistent=False)
         
 
     def forward(self, tokens : torch.Tensor) :
@@ -44,7 +45,7 @@ class GPT(nn.Module):
         assert n_ctx <= self.config.max_ctx, f"Sequence length {n_ctx} is bigger than the maximum context size {self.config.max_ctx}"
 
 
-        pos = torch.arange(n_ctx, device = tokens.device).unsqueeze(0)
+        pos = self.pos[:, :n_ctx]
         x = self.enc_tok(tokens) + self.enc_pos(pos)
 
         for block in self.mha_blocks:

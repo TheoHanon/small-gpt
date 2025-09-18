@@ -53,7 +53,7 @@ class Training:
         
         self.optim = torch.optim.AdamW(
             model.parameters(),
-            lr = self.config.learning_rate
+            lr = self.config.learning_rate,
         )
 
         train_loader = iter(self.data_train)

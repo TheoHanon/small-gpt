@@ -20,9 +20,9 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(config.d_emb, config.d_emb)
         self.W_out = nn.Linear(config.d_emb, config.d_emb)
 
-        self.register_buffer("mask", 
-                            torch.tril(torch.ones(config.max_ctx, config.max_ctx, dtype = torch.bool)),
-                            persistent=False)
+        # self.register_buffer("mask", 
+        #                     torch.tril(torch.ones(config.max_ctx, config.max_ctx, dtype = torch.bool)),
+        #                     persistent=False)
 
 
     def forward(self, X : torch.Tensor) -> torch.Tensor:
