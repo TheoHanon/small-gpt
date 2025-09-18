@@ -1,7 +1,7 @@
 # Dataset
 data/shakespeare/input.txt
 data/shakespeare/train.bin
-data/shakespeare/train.bin
+data/shakespeare/val.bin
 
 # Byte-compiled / optimized / DLL files
 
