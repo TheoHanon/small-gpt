@@ -1,5 +1,5 @@
 training:
-  num_epochs : 100
+  num_epochs : 5000
   batch_size : 4
   ctx_size : 128
   learning_rate : 3e-4
@@ -10,8 +10,8 @@ tokenizer:
 
 model :
   d_voc : 32000 # TOCHECK if changing tokenizer
-  d_emb : 128
-  max_ctx : 512
-  num_heads :  16
+  d_emb : 768
+  max_ctx : 1024
+  num_heads :  4
   n_layer : 4
   d_hidden : null

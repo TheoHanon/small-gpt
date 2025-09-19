@@ -3,6 +3,10 @@ data/shakespeare/input.txt
 data/shakespeare/train.bin
 data/shakespeare/val.bin
 
+
+# runs
+runs/.
+
 # Byte-compiled / optimized / DLL files
 
 model/__pycache__/

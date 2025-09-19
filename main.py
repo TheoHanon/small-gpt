@@ -48,10 +48,19 @@ def parse_config():
         description = "Train the GPT model given the specifications.",
     )
 
+
+    parser.add_argument("--eval", action = "store_true",
+                        help = "Whether to eval and not train the model.", default=False)
+    
+
     parser.add_argument("-c", "--config", type = str, default="config.yaml", 
                         help = "Path to your YAML config file.")
-    parser.add_argument("--ckp-dir", type = str, default = "runs/exp1", 
+    
+    parser.add_argument("--ckpt-dir", type = str, default = "runs/exp1", 
                         help = "Directory to save logs, checkpoints.")
+    
+    parser.add_argument("--save-ckpt", action = "store_true", default = True,
+                        help = "Whether to save the model checkpoint.")
 
     parser.add_argument("--force-reload", action = "store_true",
                         help = "Force reloading the dataset (redownload and retokenize).", default=False)
@@ -67,6 +76,12 @@ def parse_config():
     
     parser.add_argument("--data-dir", type = str, default = "data/shakespeare",
                         help = "Directory containing the dataset.")
+
+    parser.add_argument("--resume", action = "store_true", default = False,
+                        help = "Whether to resume training from a checkpoint.")
+    
+    parser.add_argument("--verbose", type = int, default = 1, choices = [0, 1],
+                        help = "Verbosity level: 0 (silent), 1 (logs).")
 
     args = parser.parse_args()
 
@@ -96,24 +111,40 @@ def main():
 
     model = GPT(
         config = gpt_config
-    ).to(device)
+    )
 
     if args.compile:
         model.compile()
 
-    trainer = Training(
-        config = train_config,
-        run_dir = args.ckp_dir,
-        data_dir = args.data_dir,
-    )
+    if not args.eval:
 
-    trainer.run(
-        model = model, 
-        device = device
-    )
+        trainer = Training(
+            config = train_config,
+            run_dir = args.ckpt_dir,
+            data_dir = args.data_dir,
+            resume = args.resume,
+            save_ckpt = args.save_ckpt,
+            verbose = args.verbose
+        )
 
+        trainer.run(
+            model = model, 
+            device = device
+        )
+
+    else:
+        
+        path = pathlib.Path(args.ckpt_dir) / "ckpt.pth"
+        if not path.exists():
+            raise RuntimeError(f"No checkpoint found at '{path}'.")
+
+        checkpoint = torch.load(path, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        print(f"=> Loaded checkpoint from '{path}' (epoch {checkpoint['epoch']}, val loss {checkpoint['val_loss']:.4f})")
+
+    model = model.to(device)
     model.eval()
-    q = torch.tensor(tokenizer("My name is")["input_ids"], dtype = torch.long).unsqueeze(0).repeat(5, 1).to(device)
+    q = torch.tensor(tokenizer("I love ")["input_ids"], dtype = torch.long).unsqueeze(0).repeat(5, 1).to(device)
     out= model.generate(q, max_new_tokens = 20)
     resp = tokenizer.batch_decode(out, skip_special_tokens = True)
 
