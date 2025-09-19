@@ -143,6 +143,7 @@ class Training:
 
             if (ep + 50) % 50 == 0 or (ep == self.config.num_epochs - 1):
                 model.eval()
+                # TODO: val error computed on a single batch only - improve
                 with torch.no_grad():
                     val_loss = 0.0
                     x_val, y_val = next(val_loader)
