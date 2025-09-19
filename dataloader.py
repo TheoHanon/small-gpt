@@ -10,7 +10,7 @@ class DataLoader:
     def __init__(
             self,
             B : int,
-            seq_length : int,
+            ctx_size : int,
             dir_path : str,
             *,
             split : Literal["train", "val"] = "train", 
@@ -21,9 +21,10 @@ class DataLoader:
     
 
         self.B = B
-        self.seq_length = seq_length
-        self.stride = self.B * (self.seq_length)
+        self.ctx_size = ctx_size
+        self.stride = self.B * (self.ctx_size)
         self._len = len(self.data)
+        self.split = split
 
     def __iter__(self) :
         self.pos = 0
@@ -33,16 +34,16 @@ class DataLoader:
         """
         Unused tokens here !
         """
-
+        
         if self._len <= self.pos + self.stride:
             self.pos = 0
         
         buf = self.data[self.pos : self.pos + self.stride + 1]
         self.pos += self.stride
         
-        x = buf[:-1].view(self.B, self.seq_length)
-        y = buf[1:].view(self.B, self.seq_length)
-
+        x = buf[:-1].view(self.B, self.ctx_size)
+        y = buf[1:].view(self.B, self.ctx_size)
+        
         return x, y
         
 

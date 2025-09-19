@@ -1,0 +1,17 @@
+training:
+  num_epochs : 100
+  batch_size : 4
+  ctx_size : 128
+  learning_rate : 3e-4
+  distributed : False
+
+tokenizer:
+  name : "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
+model :
+  d_voc : 32000 # TOCHECK if changing tokenizer
+  d_emb : 128
+  max_ctx : 512
+  num_heads :  16
+  n_layer : 4
+  d_hidden : null

@@ -60,7 +60,7 @@ class MultiHeadAttention(nn.Module):
         )
         attentions = attentions.transpose(1, 2).contiguous().view(B, N_ctx, self.d_emb)
 
-        return self.W_out(attentions)
+        return self.W_out(attentions) # useless
 
 
 

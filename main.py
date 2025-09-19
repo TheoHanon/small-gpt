@@ -3,64 +3,116 @@ from transformers import AutoTokenizer
 from model.gpt import GPT, GPTConfig
 
 import torch
+import argparse, yaml, os, pathlib
 
 
+def load_data(data_dir, force_reload = False):
+    
+    p = pathlib.Path(data_dir)
 
-def main(train_config, model, device):
+    if not p.exists():
+        raise RuntimeError(f"Data directory '{data_dir}' does not exist.")
+
+    if not (p / "load.py").exists() :
+        raise RuntimeError(f"Data directory '{data_dir}' does not contain 'load.py' script.")
+        
+    if not ((p / "val.bin").exists() and (p / "train.bin").exists()) or force_reload:
+        print(f"=> Tokenized data not found in '{data_dir}'. Downloading and tokenizing ...")
+        os.system(f"python {p / 'load.py'}")
+        print("=> Done.")
+        
+    return 
+    
+
+def pick_device(device):
+
+    if device == "mps" and torch.mps.is_available():
+        print("=> Using MPS")
+        print(f"=> Number of process available : {torch.mps.device_count()}")
+        return torch.device("mps")
+
+    if device == "cuda" and torch.cuda.is_available():
+        print("=> Using MPS")
+        print(f"=> Number of process available : {torch.cuda.device_count()}")
+        return torch.device("cuda")
+    
+    
+    print("=> Using CPU")
+    return torch.device("cpu")
 
 
-    trainer = Training(
-        config = train_config,
-        device = device,
+def parse_config():
+
+    parser = argparse.ArgumentParser(
+        prog = "TrainGPT",
+        description = "Train the GPT model given the specifications.",
     )
 
-    trainer.run(model)
-    model.eval()
+    parser.add_argument("-c", "--config", type = str, default="config.yaml", 
+                        help = "Path to your YAML config file.")
+    parser.add_argument("--ckp-dir", type = str, default = "runs/exp1", 
+                        help = "Directory to save logs, checkpoints.")
 
+    parser.add_argument("--force-reload", action = "store_true",
+                        help = "Force reloading the dataset (redownload and retokenize).", default=False)
+    
+    parser.add_argument("--compile", action = "store_true",
+                        help = "Do not compile the model (if PyTorch version >= 2.0) or using mps.", default=False)
 
+    parser.add_argument("--seed", type = int, default = 42,
+                        help = "Random seed for reproducibility.")
+    
+    parser.add_argument("--device", type = str, default = "mps",
+                        help = "Device to use (mps, cuda, cpu).")
+    
+    parser.add_argument("--data-dir", type = str, default = "data/shakespeare",
+                        help = "Directory containing the dataset.")
 
+    args = parser.parse_args()
 
-if __name__ == "__main__":
+    return args
 
-    torch.manual_seed(42)
+    
+def main():
 
+    args = parse_config()
 
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-        print("=> Using MPS")
-    else:
-        device = torch.device("cpu")
-        print("=> Using CPU")
+    with open(args.config, "r") as f:
+        cfg = yaml.safe_load(f) or {}
 
+    load_data(args.data_dir, force_reload= args.force_reload)
+
+    device = pick_device(args.device)
+    torch.manual_seed(args.seed)
     torch.set_float32_matmul_precision("high")
 
     tokenizer = AutoTokenizer.from_pretrained(
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        cfg["tokenizer"]["name"],
         use_fast = False
     )
 
-    train_config = TrainingConfig(
-        num_epochs= 5000,
-        batch_size = 4,
-        seq_length= 512,
-    )
-
-    gpt_config = GPTConfig(
-        d_voc = tokenizer.vocab_size,
-        d_emb = 128,
-        n_layer = 4,
-        max_ctx = 512,
-        num_heads = 16,
-    )
+    train_config = TrainingConfig(**cfg["training"])
+    gpt_config = GPTConfig(**cfg["model"])
 
     model = GPT(
         config = gpt_config
     ).to(device)
 
-    # model.compile()
+    if args.compile:
+        model.compile()
 
-    main(train_config, model, device)
+    trainer = Training(
+        config = train_config,
+        run_dir = args.ckp_dir,
+        data_dir = args.data_dir,
+    )
 
+    trainer.run(
+        model = model, 
+        device = device
+    )
+
+    model.eval()
     q = torch.tensor(tokenizer("My name is")["input_ids"], dtype = torch.long).unsqueeze(0).repeat(5, 1).to(device)
     out= model.generate(q, max_new_tokens = 20)
     resp = tokenizer.batch_decode(out, skip_special_tokens = True)
@@ -72,6 +124,11 @@ if __name__ == "__main__":
     for i, res in enumerate(resp):
         print(f"{i+1}. ", res)
     print("="*100)
-    
+
+
+
+if __name__ == "__main__":
+
+    main()
 
 
