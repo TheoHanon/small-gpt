@@ -88,7 +88,7 @@ class Training:
             ctx_size=self.config.ctx_size,
             dir_path = self.data_dir,
             split = "train"
-        ).__iter__()
+        )
 
 
         val_loader = DataLoader(
@@ -96,7 +96,7 @@ class Training:
             ctx_size=self.config.ctx_size,
             dir_path = self.data_dir,
             split = "val"
-        ).__iter__()
+        )
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -118,73 +118,77 @@ class Training:
 
         for ep in range(start_epoch, self.config.num_epochs):
     
-            t0 = time.time()
+            for ib, (x, y) in enumerate(iter(train_loader)):
+
+                t0 = time.time()
+                optimizer.zero_grad()
+
+                x, y = x.to(device), y.to(device)
+
+                with torch.autocast(device_type = device.type, dtype = torch.bfloat16):
+                    logits = model(x)
+                    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+
+                loss.backward()
+                optimizer.step()
+
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
+
+                elif device.type == "mps":
+                    torch.mps.synchronize()
             
-            optimizer.zero_grad()
-
-            x, y = next(train_loader)
-            x, y = x.to(device), y.to(device)
-
-            with torch.autocast(device_type = device.type, dtype = torch.bfloat16):
-                logits = model(x)
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
-
-            loss.backward()
-            optimizer.step()
-
-            if device.type == "cuda":
-                torch.cuda.synchronize()
-
-            elif device.type == "mps":
-                torch.mps.synchronize()
-            
-            t1 = time.time()
-            dt = 1000*(t1 - t0)
-
-            if (ep + 50) % 50 == 0 or (ep == self.config.num_epochs - 1):
-                model.eval()
-                # TODO: val error computed on a single batch only - improve
-                with torch.no_grad():
-                    val_loss = 0.0
-                    x_val, y_val = next(val_loader)
-                    x_val, y_val = x_val.to(device), y_val.to(device)
-                    with torch.autocast(device_type = device.type, dtype = torch.bfloat16):
-                        logits_val = model(x_val)
-                        val_loss = F.cross_entropy(logits_val.view(-1, logits_val.size(-1)), y_val.view(-1)) 
+                t1 = time.time()
+                dt = 1000*(t1 - t0)
 
 
-                if val_loss.item() < best_val_loss and self.save_ckpt:
-                    best_val_loss = val_loss.item()
+                if (ib + 50) % 50 == 0 or (ib == train_loader.n_batches - 1):
+                    model.eval()
+                    with torch.no_grad():
+                        val_loss = 0.0
+                        for x_val, y_val in iter(val_loader):
+                            x_val, y_val = x_val.to(device), y_val.to(device)
+                            with torch.autocast(device_type = device.type, dtype = torch.bfloat16):
+                                logits_val = model(x_val)
+                                val_loss += F.cross_entropy(logits_val.view(-1, logits_val.size(-1)), y_val.view(-1))
 
-                    checkpoint = {
-                        "model_state_dict" : model.state_dict(),
-                        "optimizer_state_dict" : optimizer.state_dict(),
-                        "epoch" : ep,
-                        "val_loss" : val_loss.item(),
-                    }
-                    torch.save(checkpoint, ckpt_path / "ckpt.pth")
-
-                    with open(ckpt_path / "config.json", "w") as f:
-                        json.dump(model.config.model_dump(), f, indent = 4)
+                        val_loss /= (val_loader.n_batches)
 
 
+                    if val_loss < best_val_loss and self.save_ckpt:
+                        best_val_loss = val_loss
+
+                        checkpoint = {
+                            "model_state_dict" : model.state_dict(),
+                            "optimizer_state_dict" : optimizer.state_dict(),
+                            "epoch" : ep,
+                            "val_loss" : val_loss
+                        }
+                        torch.save(checkpoint, ckpt_path / "ckpt.pth")
+
+                        with open(ckpt_path / "config.json", "w") as f:
+                            json.dump(model.config.model_dump(), f, indent = 4)
+
+
+                        logger.info(
+                            f"[CHECKPOINT] Saved best model at [{ep+1}/{self.config.num_epochs}] [{ib+1}/{train_loader.n_batches}] "
+                            f"| val_loss: {val_loss:.4f}"
+                        )
+                            
+                    model.train()
                     logger.info(
-                        f"[CHECKPOINT] Saved best model at epoch {ep+1}/{self.config.num_epochs} "
-                        f"| val_loss: {val_loss.item():.4f}"
+                        f"[VALIDATION] === Eval at [{ep+1} / {self.config.num_epochs}] [{ib+1} / {train_loader.n_batches}] | "
+                        f"Val Loss: {val_loss:.4f} | Best Val Loss: {best_val_loss:.4f} ==="
                     )
-                        
-                model.train()
-                logger.info(
-                    f"[VALIDATION] === Eval at epoch {ep+1} / {self.config.num_epochs} | Val Loss : {val_loss.item():.4f} ==="
-                )
 
-            if ep % 20 == 0:
-                logger.info(
-                    "[EVAL] "
-                    f"[{ep+1}/{self.config.num_epochs}] "
-                    f"Loss: {loss.item():.4f} | dt: {dt:.2f}ms | "
-                    f"{(self.config.batch_size * self.config.ctx_size) / dt:.2f} toks/sec"
-                )
+                if ib % 20 == 0:
+                    logger.info(
+                        "[EVAL] "
+                        f"[{ep+1}/{self.config.num_epochs}] "
+                        f"[{ib+1}/{train_loader.n_batches}] | "
+                        f"Loss: {loss.item():.4f} | dt: {dt:.2f}ms | "
+                        f"{(self.config.batch_size * self.config.ctx_size) / dt:.2f} toks/sec"
+                    )
             
 
         logger.info("=== Training finished ===")

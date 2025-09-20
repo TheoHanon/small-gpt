@@ -24,6 +24,7 @@ class DataLoader:
         self.ctx_size = ctx_size
         self.stride = self.B * (self.ctx_size)
         self._len = len(self.data)
+        self.n_batches = (self._len - 1) // self.stride
         self.split = split
 
     def __iter__(self) :
@@ -36,7 +37,8 @@ class DataLoader:
         """
         
         if self._len <= self.pos + self.stride:
-            self.pos = 0
+            raise StopIteration
+
         
         buf = self.data[self.pos : self.pos + self.stride + 1]
         self.pos += self.stride
